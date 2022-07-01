@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: 'CloudFormation - Test - Web Stack '
+
+Parameters:
+  Environment:
+    Description: Test Environment
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/build/environment/jino-test'
+  Client:
+    Description: Client Name
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/client'
+  AvailabiltyZone1:
+    Description: Set Availability Zone 1
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/AvailabiltyZone1'
+  AvailabiltyZone2:
+    Description: Set Availability Zone 2
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/AvailabiltyZone2'
+
+  KeyPairName:
+    Description: Key file used to SSH into servers
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/KeyPairName'
+
+  InstanceType:
+    Description: 'Name of Parameter to define the instance type.'
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/instancetype'  
+  VolumeSize:  
+    Description: 'Name of Parameter to define the volumesize.'
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/volumesize' 
+  WebAMI:  
+    Description: 'Name of Parameter to define the AMI.'
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/AMI' 
+
+Resources:
+#Ec2instances
+  Ec2Instance1:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref WebAMI
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      #IamInstanceProfile: !Sub 'iam-${Client}-web-profile'         
+      BlockDeviceMappings:
+        -
+          DeviceName: "/dev/sda1"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref VolumeSize
+            Encrypted: "true"
+      UserData:
+        'Fn::Base64':
+          !Sub |
+            #!/bin/bash -xe
+             sudo su
+             apt-get update -y
+             apt-get install apache2 -y              
+
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "True"
+          DeviceIndex: "0"
+          GroupSet:
+            - Fn::ImportValue:
+                Fn::Sub: 'sgrp-${Environment}-${Client}-ssh'                             
+          SubnetId:
+            Fn::ImportValue:
+              Fn::Sub: 'subnet-${Environment}-${Client}-public-${AWS::Region}-az1' 
+      Tags:
+      - Key: Name
+        Value: !Sub 'webserver1-${Environment}-${Client}'
+      - Key: Environment
+        Value: test
+            
+
+  Ec2Instance2:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: !Ref WebAMI
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      #IamInstanceProfile: !Sub 'iam-${Client}-web-profile'         
+      BlockDeviceMappings:
+        -
+          DeviceName: "/dev/sda1"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref VolumeSize
+            Encrypted: "true"
+      UserData:
+        'Fn::Base64':
+          !Sub |
+            #!/bin/bash -xe
+             sudo su
+             apt-get update -y
+             apt-get install apache2 -y      
+
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "True"
+          DeviceIndex: "0"
+          GroupSet:
+            - Fn::ImportValue:
+                Fn::Sub: 'sgrp-${Environment}-${Client}-ssh'                            
+          SubnetId:
+            Fn::ImportValue:
+              Fn::Sub: 'subnet-${Environment}-${Client}-public-${AWS::Region}-az2'  
+      Tags:
+      - Key: Name
+        Value: !Sub 'webserver2-${Environment}-${Client}'
+      - Key: Environment
+        Value: test
+#Create an Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub 'elb-${Environment}'
+      Scheme: internet-facing
+      SecurityGroups:
+        - Fn::ImportValue: !Sub 'sgrp-${Environment}-${Client}-jino'
+      Subnets: 
+        - Fn::ImportValue: !Sub 'subnet-${Environment}-${Client}-public-${AWS::Region}-az1' 
+        - Fn::ImportValue: !Sub 'subnet-${Environment}-${Client}-public-${AWS::Region}-az2'
+
+#Create a Listener on Port 80
+  ALBListenerNoSslCertificate:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      #TargetGroupArn: !Ref 
+      Port: 80
+      Protocol: HTTP
+      
+
+#Create a Listener on Port 443
+  #ALBListenerSslCertificate:
+   # Type : AWS::ElasticLoadBalancingV2::Listener
+    #Properties:
+     # Certificates:
+      #  - CertificateArn: !Ref AcmCertificate
+      #DefaultActions:
+       # - Type: forward
+        #  TargetGroupArn: !Ref ALBTargetGroup
+      #LoadBalancerArn: !Ref ApplicationLoadBalancer
+      #Port: 443
+      #Protocol: HTTPS
+
+# Create a Target Group
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      ProtocolVersion: HTTP2
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: 200,302
+      Name: MyWebServers
+      Port: 80
+      Protocol: HTTP
+      Targets:
+        - Id: !Ref 'Ec2Instance1'
+          Port: 80
+        - Id: !Ref 'Ec2Instance2'
+          Port: 80
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Fn::ImportValue: !Sub 'vpc-${Environment}-${Client}-${AWS::Region}-VPCId'
+
+Outputs:
+# Export Target Group
+  ALBTargetGroup:
+    Description: Webserver target group
+    Export:
+      Name: !Sub ${AWS::StackName}-ALBTargetGroup
+    Value: !Ref ALBTargetGroup
+
+# Export Application Load Balancer Dns Name
+  ApplicationLoadBalancerDnsName:
+    Description: Application Load Balancer DNS Name
+    Export:
+      Name: !Sub ${AWS::StackName}-ApplicationLoadBalancerDnsName
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+
+# Export Application Load Balancer Zone ID
+  ApplicationLoadBalancerZoneID:
+    Description: Application Load Balancer Canonical Hosted Zone ID
+    Export:
+      Name: !Sub ${AWS::StackName}-ApplicationLoadBalancerZoneID
+    Value: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID

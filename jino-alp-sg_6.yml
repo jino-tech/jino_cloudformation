@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Network Redux CloudFormation- Test Security Group"
+
+Parameters:
+  Environment:
+    Description: Test Environment
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/build/environment/jino-test'
+  Client:
+    Description: Client Name
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/jino-test/client'  
+  
+Resources:
+      elbsg1:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupName: !Sub 'sgrp-${Environment}-${Client}-elb1'
+          GroupDescription: Security Group for Production ELB access
+          VpcId: 
+              Fn::ImportValue:
+               !Sub 'vpc-${Environment}-${Client}-${AWS::Region}-VPCId'
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            CidrIp: 0.0.0.0/0
+          #- IpProtocol: tcp
+           # FromPort: '443'
+            #ToPort: '443'
+            #CidrIp: 0.0.0.0/0
+          Tags:
+            - Key: Name
+              Value: !Sub 'sgrp-${Environment}-${Client}-elb1'
+
+      elbsg2:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupName: !Sub 'sgrp-${Environment}-${Client}-elb2'
+          GroupDescription: Security Group for Production web access
+          VpcId: 
+              Fn::ImportValue:
+               !Sub 'vpc-${Environment}-${Client}-${AWS::Region}-VPCId'
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            CidrIp: 0.0.0.0/0
+          - #IpProtocol: tcp
+            #FromPort: '443'
+            #ToPort: '443'
+            #CidrIp: 0.0.0.0/0
+          Tags:
+            - Key: Name
+              Value: !Sub 'sgrp-${Environment}-${Client}-elb2'
+      
+    Outputs:
+      elbsg1:
+        Value: !Ref elbsg1
+        Export:
+          Name: !Sub 'sgrp-${Environment}-${Client}-elb1'          
+      elbsg2:
+        Value: !Ref elbsg2
+        Export:
+          Name: !Sub 'sgrp-${Environment}-${Client}-elb2'
+      
+                  

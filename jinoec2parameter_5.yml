@@ -1,0 +1,37 @@
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation - Test parameters'
+
+Resources:
+  Instancetype:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of Instancetype
+      Name: '/jino-test/instancetype'
+      Type: String
+      Value: 't2.micro'
+
+  VolumeSize:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of parameter to define the volumesize
+      Name: '/jino-test/volumesize'
+      Type: String
+      Value: '10'
+
+
+  KeyPairName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of parameter to define the Test Keypair
+      Name: '/jino-test/KeyPairName'
+      Type: String
+      Value: 'ami'
+
+  TestAMI:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of parameter to define the Test AMI
+      Name: '/jino-test/AMI'
+      Type: String
+      Value: 'ami-068257025f72f470d'

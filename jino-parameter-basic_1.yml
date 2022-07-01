@@ -1,0 +1,20 @@
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'CloudFormation - Jino Network Test parameters'
+
+Resources:
+  BuildEnvironment:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of Environment
+      Name: '/build/environment/jino-test'
+      Type: String
+      Value: test
+
+  ClientName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Name of Client
+      Name: '/jino-test/client'
+      Type: String
+      Value: jino
